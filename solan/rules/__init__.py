@@ -2,6 +2,8 @@ from io import BufferedReader
 import string
 from enum import Enum
 
+import chardet
+
 from solan import SIG_TYPES
 
 
@@ -38,7 +40,7 @@ class FilePath_Rule:
 
     def __init__(self, rule_type: str, rule_data: bytes) -> None:
         self.rule_type = rule_type
-        self.path = _convert_to_printable(rule_data)
+        # self.path = rule_data.decode("utf-8")
 
     def __str__(self) -> str:
         return self.path
@@ -48,7 +50,7 @@ class Filename_Rule:
 
     def __init__(self, rule_type: str, rule_data: bytes) -> None:
         self.rule_type = rule_type
-        self.filename = _convert_to_printable(rule_data)
+        # self.filename = rule_data.decode("utf-8")
 
     def __str__(self) -> str:
         return self.filename
@@ -71,7 +73,9 @@ class RuleSegment:
         self.byte_count2: int = byte_count2
         self.wildcard_type: WildcardType = wildcard_type
         self.segment_index: int = segment_index
-        self.segment_length: int = segment_length
+        self.segment_length: int = (
+            len(detection_bytes) if detection_bytes else segment_length
+        )
 
     def __str__(self) -> str:
         if self.wildcard_type == WildcardType.MatchExactByteCount:
@@ -93,10 +97,27 @@ class HSTR_Rule:
         self.detection_threshold, self.rules = self._parse_hstr_rule_ext(rule_data)
 
     def __str__(self) -> str:
-        return f"type: {self.rule_type} - detection_threshold: {self.detection_threshold} - rule_count: {len(self.rules)}"
+        pretty = f"type: {self.rule_type} - detection_threshold: {self.detection_threshold} - rule_count: {len(self.rules)}\nrules:\n"
+        for rule in self.rules:
+            pretty += " " + rule.__str__() + "\n"
+        return pretty
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def _parse_hstr_rule_ext(self, data: bytes):
-        unknown_bytes = data[0:1]
+        """
+        typedef struct _STRUCT_PEHSTR_HEADER {
+          UINT16  ui16Unknown;
+          UINT8   ui8ThresholdRequiredLow;
+          UINT8   ui8ThresholdRequiredHigh;
+          UINT8   ui8SubRulesNumberLow;
+          UINT8   ui8SubRulesNumberHigh;
+          BYTE    bEmpty;
+          BYTE    pbRuleData[];
+        } STRUCT_PEHSTR_HEADER, * PSTRUCT_PEHSTR_HEADER;
+        """
+        unknown_bytes = data[0:2]
         detection_threshold = data[2] | (data[3] << 8)
         sub_rules_count = data[4] | (data[5] << 8)
         empty = data[6]
@@ -104,17 +125,23 @@ class HSTR_Rule:
         rule_index = 0
         rules = []
         while rule_index < sub_rules_count:
+            """
+            typedef struct _STRUCT_RULE_PEHSTR_EXT {
+                UINT8  ui8SubRuleWeightLow;
+                UINT8  ui8SubRuleWeightHigh;
+                UINT8  ui8SubRuleSize;
+                UINT8  ui8CodeUnknown;
+                BYTE   pbSubRuleBytesToMatch[];
+            } STRUCT_RULE_PEHSTR_EXT, *PSTRUCT_RULE_PEHSTR_EXT;
+            """
             try:
-                rule_threshold = int.from_bytes(data[offset : offset + 1], "little")
+                rule_weight = data[offset] | (data[offset + 1] << 8)
                 rule_size = data[offset + 2]
-                offset += 3
-                rule_data = data[offset : offset + rule_size]
-                offset += rule_size + 1
-                yara_rule = self._generate_yara_rule(rule_data)
-                wildcards = list(self._parse_wildcard(rule_data))
-                rule = _convert_to_printable(rule_data, wildcards)
-                pretty_rule = rule.replace("\\x00", "")
-                rules.append(pretty_rule)
+                rule_data = data[offset + 3 : offset + 4 + rule_size]
+                offset += rule_size + 4
+                rule_segments = self._get_rule_segments(rule_data)
+                rule = Rule(rule_segments, rule_weight, rule_data)
+                rules.append(rule)
             except Exception as err:
                 # print(err)
                 pass
@@ -122,15 +149,16 @@ class HSTR_Rule:
                 rule_index += 1
         return detection_threshold, rules
 
-    def _generate_yara_rule(self, rule_data: bytes):
+    def _generate_yara_rule(self):
         pass
 
     def _parse_wildcard(self, rule_data: bytes, offset: int = 0):
-
+        last_found = -1
         # match exactly X number of bytes
         wildcard_index = rule_data.find(b"\x90\x01", offset)
         if wildcard_index > -1:
             byte_match_count = rule_data[wildcard_index + 2]
+            last_found = wildcard_index
             yield RuleSegment(
                 segment_index=wildcard_index,
                 segment_length=3,
@@ -141,6 +169,7 @@ class HSTR_Rule:
         # match up to X number of bytes
         wildcard_index = rule_data.find(b"\x90\x02", offset)
         if wildcard_index > -1:
+            last_found = wildcard_index
             byte_match_count = rule_data[wildcard_index + 2]
             yield RuleSegment(
                 segment_index=wildcard_index,
@@ -152,6 +181,7 @@ class HSTR_Rule:
         # match either X or Y number of bytes
         wildcard_index = rule_data.find(b"\x90\x03", offset)
         if wildcard_index > -1:
+            last_found = wildcard_index
             byte_match_count = rule_data[wildcard_index + 2]
             byte_match_count2 = rule_data[wildcard_index + 3]
             yield RuleSegment(
@@ -165,6 +195,7 @@ class HSTR_Rule:
         # match exactly X number of bytes with Y length regex pattern following
         wildcard_index = rule_data.find(b"\x90\x04", offset)
         if wildcard_index > -1:
+            last_found = wildcard_index
             byte_match_count = rule_data[wildcard_index + 2]
             regex_size = rule_data[wildcard_index + 3]
             regex = rule_data[wildcard_index + 4 : wildcard_index + 4 + regex_size]
@@ -179,6 +210,7 @@ class HSTR_Rule:
             # match up to X number of bytes with Y length regex pattern follow
         wildcard_index = rule_data.find(b"\x90\x05", offset)
         if wildcard_index > -1:
+            last_found = wildcard_index
             byte_match_count = rule_data[wildcard_index + 2]
             regex_size = rule_data[wildcard_index + 3]
             regex = rule_data[wildcard_index + 4 : wildcard_index + 4 + regex_size]
@@ -190,27 +222,71 @@ class HSTR_Rule:
                 regex=regex,
             )
 
-        if wildcard_index > -1:
-            yield self._parse_wildcard(rule_data, wildcard_index + 1)
+        if last_found > -1:
+            yield from self._parse_wildcard(rule_data, last_found + 1)
+
+    def _get_rule_segments(self, rule_data: bytes):
+        segments: list[RuleSegment] = []
+        wildcards = list(self._parse_wildcard(rule_data))
+
+        if wildcards:
+            data = bytearray()
+            offset = 0
+            for wildcard in wildcards:
+                segments.append(
+                    RuleSegment(
+                        segment_index=offset,
+                        detection_bytes=rule_data[offset : wildcard.segment_index],
+                    )
+                )
+                segments.append(wildcard)
+                offset = wildcard.segment_index + wildcard.segment_length + 1
+            segments.append(
+                RuleSegment(
+                    segment_index=offset,
+                    detection_bytes=rule_data[offset:],
+                )
+            )
+        else:
+            segments.append(RuleSegment(segment_index=0, detection_bytes=rule_data))
+
+        return segments
 
 
-def _convert_to_printable(value: bytes, wildcards: list[RuleSegment] = None):
+class Rule:
+    def __init__(
+        self, segments: list[RuleSegment], weight: int, raw_bytes: bytes
+    ) -> None:
+        self.segments = segments
+        self.weight = weight
+        self.raw_bytes = raw_bytes
 
-    if wildcards:
-        data = bytearray()
-        offset = 0
-        for wildcard in wildcards:
-            data += value[offset : wildcard.segment_index]
-            data += wildcard.__str__().encode()
-            offset = wildcard.segment_index + wildcard.segment_length + 1
-        data += value[offset:]
-    else:
-        data = value
+    def __str__(self) -> str:
+        return f"weight: {self.weight} rule: {_convert_to_printable(self.segments)}"
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+def _convert_to_printable(segments: list[RuleSegment] = None):
+
+    data = bytearray()
+    for segment in segments:
+        try:
+            if segment.wildcard_type:
+                data += segment.__str__().encode()
+            else:
+                data += segment.detection_bytes
+        except:
+            pass
     printables = string.ascii_letters + string.digits + string.punctuation + " "
+
+    data = data.replace(b"\x00", b"")
+    encoding = chardet.detect(data)
+    encoding = encoding["encoding"] if encoding["encoding"] else "unicode_escape"
     return "".join(
         c if c in printables else r"\x{0:02x}".format(ord(c))
-        for c in data.decode("latin1")
+        for c in data.decode(encoding, "replace")
     )
 
 

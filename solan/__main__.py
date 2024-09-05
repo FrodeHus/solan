@@ -17,7 +17,7 @@ def main():
                 threat = signature
                 # print(threat)
             elif type(signature) is HSTR_Rule:
-                threat.hstr_rules = signature.rules
+                threat.hstr_rules = signature
                 if signature.rule_type == "SIGNATURE_TYPE_CMDHSTR_EXT":
                     print(threat)
                     pprint.pprint(threat.hstr_rules)
