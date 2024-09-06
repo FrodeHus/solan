@@ -91,7 +91,7 @@ class Threat(BaseSignature):
         unknown = data[4:10]
         threat_name_size = data[10]
         unknown2 = data[11]
-        if data[12] == b"\xAF" or data[12] == b"\xAC" or data[12] == b"\x84":
+        if data[12] == 0xAF or data[12] == 0xAC or data[12] == 0x84:
             start = 13
         else:
             start = 12
@@ -211,9 +211,16 @@ class SignatureHSTR(BaseSignature):
             try:
                 rule_weight = data[offset] | (data[offset + 1] << 8)
                 rule_size = data[offset + 2]
+                unknown = data[offset + 3]
+                padding = 0
+                if unknown == 0x81:
+                    padding = 1
+
                 if self.type_name.endswith("_EXT"):
-                    rule_data = data[offset + 3 : offset + 3 + rule_size]
-                    offset += len(rule_data) + 4
+                    rule_data = data[
+                        offset + 3 + padding : offset + 3 + padding + rule_size
+                    ]
+                    offset += len(rule_data) + 4 + padding
                 else:
                     rule_data = data[offset + 2 : offset + 2 + rule_size]
                     offset += len(rule_data) + 3
