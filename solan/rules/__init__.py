@@ -16,44 +16,6 @@ class WildcardType(Enum):
     RegexMatchUpToCount = 5
 
 
-class Threat:
-
-    def __init__(self, header: bytes) -> None:
-        self.threat_id, self.threat_name = self._parse_threat_header(header)
-        self.threat_name = self.threat_name
-        self.signatures: list[BaseSignature] = []
-
-    def __str__(self) -> str:
-        return f"{self.threat_id} - {self.threat_name}"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    def _parse_threat_header(self, data: bytes):
-        """
-        typedef struct _STRUCT_SIG_TYPE_THREAT_BEGIN {
-
-            UINT32 ui32SignatureId;
-            BYTE   unknownBytes1[6];
-            UINT8  ui8SizeThreatName;
-            BYTE   unknownBytes2[2];
-            CHAR   lpszThreatName[ui8SizeThreatName];
-            BYTE   unknownBytes3[9];
-        } STRUCT_SIG_TYPE_THREAT_BEGIN,* PSTRUCT_SIG_TYPE_THREAT_BEGIN;
-        """
-        signature_id = int.from_bytes(data[0:4], "little")
-        unknown = data[4:10]
-        threat_name_size = data[10]
-        unknown2 = data[11]
-        if data[12] == b"\xAF" or data[12] == b"\xAC" or data[12] == b"\x84":
-            start = 13
-        else:
-            start = 12
-        title_data = data[start : start + threat_name_size]
-        threat_name = title_data.decode("utf-8", "ignore")
-        return signature_id, threat_name
-
-
 class RuleSegment:
     def __init__(
         self,
@@ -94,10 +56,48 @@ class BaseSignature:
         self.value = value
 
     def __str__(self) -> str:
-        return f"{self.type_value}: {self.type_name}"
+        return f"0x{self.type_value:02x}: {self.type_name}"
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+class Threat(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+        self.threat_id, self.threat_name = self._parse_threat_header(value)
+        self.threat_name = self.threat_name
+        self.signatures: list[BaseSignature] = []
+
+    def __str__(self) -> str:
+        return f"{self.threat_id} - {self.threat_name}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def _parse_threat_header(self, data: bytes):
+        """
+        typedef struct _STRUCT_SIG_TYPE_THREAT_BEGIN {
+
+            UINT32 ui32SignatureId;
+            BYTE   unknownBytes1[6];
+            UINT8  ui8SizeThreatName;
+            BYTE   unknownBytes2[2];
+            CHAR   lpszThreatName[ui8SizeThreatName];
+            BYTE   unknownBytes3[9];
+        } STRUCT_SIG_TYPE_THREAT_BEGIN,* PSTRUCT_SIG_TYPE_THREAT_BEGIN;
+        """
+        signature_id = int.from_bytes(data[0:4], "little")
+        unknown = data[4:10]
+        threat_name_size = data[10]
+        unknown2 = data[11]
+        if data[12] == b"\xAF" or data[12] == b"\xAC" or data[12] == b"\x84":
+            start = 13
+        else:
+            start = 12
+        title_data = data[start : start + threat_name_size]
+        threat_name = title_data.decode("utf-8", "ignore")
+        return signature_id, threat_name
 
 
 class EndOfThreat(BaseSignature):
@@ -386,7 +386,7 @@ def parse_signature(data_reader: BufferedReader):
     if not signature:
         return None
     if signature == "SIGNATURE_TYPE_THREAT_BEGIN":
-        return Threat(value)
+        return Threat(sig_type, signature, value)
     if signature == "SIGNATURE_TYPE_THREAT_END":
         return EndOfThreat(sig_type, signature, value)
     if signature.find("HSTR") > -1:
