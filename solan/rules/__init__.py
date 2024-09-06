@@ -53,6 +53,7 @@ class Threat:
         threat_name = title_data.decode("utf-8", "ignore")
         return signature_id, threat_name
 
+
 class RuleSegment:
     def __init__(
         self,
@@ -97,6 +98,12 @@ class BaseSignature:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+class EndOfThreat(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+        self.threat_id = int.from_bytes(value, "little")
 
 
 class SignatureStatic(BaseSignature):
@@ -198,12 +205,19 @@ class SignatureHSTR(BaseSignature):
                 UINT8  ui8CodeUnknown;
                 BYTE   pbSubRuleBytesToMatch[];
             } STRUCT_RULE_PEHSTR_EXT, *PSTRUCT_RULE_PEHSTR_EXT;
+            
+            NOTES: weights are calculated wrong in some cases because the offset is wrong - different signature types
             """
             try:
                 rule_weight = data[offset] | (data[offset + 1] << 8)
                 rule_size = data[offset + 2]
-                rule_data = data[offset + 3 : offset + 4 + rule_size]
-                offset += len(rule_data) + 3
+                if self.type_name.endswith("_EXT"):
+                    rule_data = data[offset + 3 : offset + 3 + rule_size]
+                    offset += len(rule_data) + 4
+                else:
+                    rule_data = data[offset + 2 : offset + 2 + rule_size]
+                    offset += len(rule_data) + 3
+
                 rule_segments = self._get_rule_segments(rule_data)
                 rule = Rule(rule_segments, rule_weight, rule_data)
                 rules.append(rule)
@@ -374,7 +388,7 @@ def parse_signature(data_reader: BufferedReader):
     if signature == "SIGNATURE_TYPE_THREAT_BEGIN":
         return Threat(value)
     if signature == "SIGNATURE_TYPE_THREAT_END":
-        return None
+        return EndOfThreat(sig_type, signature, value)
     if signature.find("HSTR") > -1:
         return SignatureHSTR(value, sig_type, signature)
     if signature == "SIGNATURE_TYPE_FILEPATH":
