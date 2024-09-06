@@ -10,6 +10,14 @@ Based on the excellent research @ [retooling.io](https://retooling.io/blog/an-un
 
 The `.vdm` files are typically found in `C:\ProgramData\Microsoft\Windows Defender\Definition Updates\<GUID>`
 
+There's a super crappy interactive terminal:
+
+- `categories` - lists all categories
+- `list all` - lists all threats
+- `list <category>` - lists threats within category
+- `find <search string>` - searches for threats with a name that matches string
+- `get <id>` - prints the threat and associated signatures for given id
+
 Example output:
 
 ```text

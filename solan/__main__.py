@@ -39,14 +39,43 @@ def main():
 
     signature_count = sum([len(s.signatures) for s in threats])
     print(f"Loaded {len(threats)} threats with {signature_count} signatures.")
-    test_threats = [
-        threat for threat in threats if threat.threat_name.find("AmsiBypass") > -1
-    ]
+    # test_threats = [
+    #     threat for threat in threats if threat.threat_name.find("AmsiBypass") > -1
+    # ]
 
-    for threat in test_threats:
-        pprint.pprint(threat)
-        pprint.pprint(threat.signatures)
+    # for threat in test_threats:
+    #     pprint.pprint(threat)
+    #     pprint.pprint(threat.signatures)
 
+    cmd = None
+    while cmd != "q":
+        cmd = input("> ")
+        cmd_params = cmd.split(" ")
+        if cmd == "categories":
+            pprint.pprint({t.category for t in threats})
+        elif cmd_params[0] == "list":
+            what = cmd_params[1]
+            if what == "all":
+                for threat in threats:
+                    pprint.pprint(threat)
+            else:
+                for threat in [t for t in threats if t.category == what]:
+                    pprint.pprint(threat)
+        elif cmd_params[0] == "get":
+            id = int(cmd_params[1])
+            for threat in threats:
+                if threat.threat_id == id:
+                    pprint.pprint(threat)
+                    pprint.pprint(threat.signatures)
+                    break
+        elif cmd_params[0] == "find":
+            results = [
+                threat
+                for threat in threats
+                if threat.threat_name.lower().find(cmd_params[1].lower()) > -1
+            ]
+            for threat in results:
+                pprint.pprint(threat)
 
 if __name__ == "__main__":
     main()

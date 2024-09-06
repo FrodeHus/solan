@@ -73,7 +73,7 @@ class Threat(BaseSignature):
         )
 
     def __str__(self) -> str:
-        return f"{self.threat_id} - {self.threat_name}"
+        return f"id: {self.threat_id} - name: {self.threat_name} - category: {self.category}"
 
     def __repr__(self) -> str:
         return self.__str__()
