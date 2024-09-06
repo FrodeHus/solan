@@ -18,12 +18,29 @@ There's a super crappy interactive terminal:
 - `find <search string>` - searches for threats with a name that matches string
 - `get <id>` - prints the threat and associated signatures for given id
 
-Example output:
+Example:
 
 ```text
+python3 -m solan mpavbase.vdm
 Loaded 305796 threats with 2223461 signatures.
 
-2147910221 - AmsiBypass.CCHZ!MTB
+> find amsibypass
+id: 2147750078 - name: HackTool:PowerShell/AMSIBypass.A - category: HackTool:PowerShell
+id: 2147768586 - name: Trojan:PowerShell/PowershellAmsiBypass.A - category: Trojan:PowerShell
+id: 2147827660 - name: AmsiBypass.NE!MTB - category: Generic
+id: 2147828902 - name: !AmsiBypass!MTB - category: Generic
+id: 2147839431 - name: Trojan:Script/AmsiBypass.A - category: Trojan:Script
+id: 2147843188 - name: Trojan:Win64/AMSIBypassAV!MTB - category: Trojan:Win64
+...
+id: 2147904056 - name: Trojan:Script/AmsiBypass.E - category: Trojan:Script
+id: 2147904796 - name: AmsiBypass.NB!MTB - category: Generic
+id: 2147904999 - name: AmsiBypass.CCHT!MTB - category: Generic
+id: 2147910221 - name: AmsiBypass.CCHZ!MTB - category: Generic
+id: 2147910649 - name: AmsiBypass.NB - category: Generic
+id: 2147915433 - name: Trojan:PowerShell/AmsiBypassOpen.A - category: Trojan:PowerShell
+
+> get 2147910221
+id: 2147910221 - name: AmsiBypass.CCHZ!MTB - category: Generic
 [0x67: SIGNATURE_TYPE_STATIC
 detection bytes: ca fc 87 30 15 99 12 ad be af 19 43 00 77 86 00 01 20 7b 19 d5 bf,
  0x67: SIGNATURE_TYPE_STATIC
