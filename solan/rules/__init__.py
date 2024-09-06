@@ -1,3 +1,4 @@
+import binascii
 from io import BufferedReader
 import string
 from enum import Enum
@@ -19,42 +20,38 @@ class Threat:
 
     def __init__(self, header: bytes) -> None:
         self.threat_id, self.threat_name = self._parse_threat_header(header)
-        self.threat_name = self.threat_name.decode("unicode_escape")
-        self.hstr_rules = None
-        self.filenames = []
-        self.filepaths = []
+        self.threat_name = self.threat_name
+        self.signatures: list[BaseSignature] = []
 
     def __str__(self) -> str:
         return f"{self.threat_id} - {self.threat_name}"
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
     def _parse_threat_header(self, data: bytes):
-        signature_id = int.from_bytes(data[0:3], "little")
-        unknown = data[4:9]
+        """
+        typedef struct _STRUCT_SIG_TYPE_THREAT_BEGIN {
+
+            UINT32 ui32SignatureId;
+            BYTE   unknownBytes1[6];
+            UINT8  ui8SizeThreatName;
+            BYTE   unknownBytes2[2];
+            CHAR   lpszThreatName[ui8SizeThreatName];
+            BYTE   unknownBytes3[9];
+        } STRUCT_SIG_TYPE_THREAT_BEGIN,* PSTRUCT_SIG_TYPE_THREAT_BEGIN;
+        """
+        signature_id = int.from_bytes(data[0:4], "little")
+        unknown = data[4:10]
         threat_name_size = data[10]
-        unknown2 = data[11:12]
-        threat_name = data[13 : 13 + threat_name_size]
+        unknown2 = data[11]
+        if data[12] == b"\xAF" or data[12] == b"\xAC" or data[12] == b"\x84":
+            start = 13
+        else:
+            start = 12
+        title_data = data[start : start + threat_name_size]
+        threat_name = title_data.decode("utf-8", "ignore")
         return signature_id, threat_name
-
-
-class FilePath_Rule:
-
-    def __init__(self, rule_type: str, rule_data: bytes) -> None:
-        self.rule_type = rule_type
-        # self.path = rule_data.decode("utf-8")
-
-    def __str__(self) -> str:
-        return self.path
-
-
-class Filename_Rule:
-
-    def __init__(self, rule_type: str, rule_data: bytes) -> None:
-        self.rule_type = rule_type
-        # self.filename = rule_data.decode("utf-8")
-
-    def __str__(self) -> str:
-        return self.filename
-
 
 class RuleSegment:
     def __init__(
@@ -89,15 +86,83 @@ class RuleSegment:
         return "(TODO)"
 
 
-class HSTR_Rule:
+class BaseSignature:
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        self.type_value = type_value
+        self.type_name = type_name
+        self.value = value
 
-    def __init__(self, rule_type: str, rule_data: bytes, threat: Threat) -> None:
+    def __str__(self) -> str:
+        return f"{self.type_value}: {self.type_name}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class SignatureStatic(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+
+    def __str__(self) -> str:
+        return (
+            super().__str__()
+            + "\ndetection bytes: "
+            + binascii.hexlify(self.value, sep=" ").decode("utf-8")
+        )
+
+
+class SignatureFilePath(BaseSignature):
+
+    def __init__(self, rule_type: str, rule_data: bytes) -> None:
+        super().__init__(95, "SIGNATURE_TYPE_FILEPATH", rule_data)
         self.rule_type = rule_type
-        self.threat = threat
+        self.path = _decode_str(rule_data)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\nfilepath: " + self.path
+
+
+class SignatureFilename(BaseSignature):
+
+    def __init__(self, rule_type: str, rule_data: bytes) -> None:
+        super().__init__(94, "SIGNATURE_TYPE_FILENAME", rule_data)
+        self.rule_type = rule_type
+        self.filename = _decode_str(rule_data)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\nfilename: " + self.filename
+
+
+class SignatureDefaults(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\ndefaults: " + _decode_str(self.value)
+
+
+class SignatureCleanScript(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\nscript: " + _decode_str(self.value)
+
+
+class SignatureHSTR(BaseSignature):
+
+    def __init__(
+        self,
+        rule_data: bytes,
+        signature_type: int,
+        signature_name: str,
+    ) -> None:
+        super().__init__(signature_type, signature_name, rule_data)
         self.detection_threshold, self.rules = self._parse_hstr_rule_ext(rule_data)
 
     def __str__(self) -> str:
-        pretty = f"type: {self.rule_type} - detection_threshold: {self.detection_threshold} - rule_count: {len(self.rules)}\nrules:\n"
+        pretty = super().__str__()
+        pretty += f"\ndetection_threshold: {self.detection_threshold} - rule_count: {len(self.rules)}\nrules:\n"
         for rule in self.rules:
             pretty += " " + rule.__str__() + "\n"
         return pretty
@@ -138,7 +203,7 @@ class HSTR_Rule:
                 rule_weight = data[offset] | (data[offset + 1] << 8)
                 rule_size = data[offset + 2]
                 rule_data = data[offset + 3 : offset + 4 + rule_size]
-                offset += rule_size + 4
+                offset += len(rule_data) + 3
                 rule_segments = self._get_rule_segments(rule_data)
                 rule = Rule(rule_segments, rule_weight, rule_data)
                 rules.append(rule)
@@ -290,7 +355,13 @@ def _convert_to_printable(segments: list[RuleSegment] = None):
     )
 
 
-def parse_signature(data_reader: BufferedReader, threat: Threat = None):
+def _decode_str(data: bytes) -> str:
+    encoding = chardet.detect(data)
+    encoding = encoding["encoding"] if encoding["encoding"] else "ascii"
+    return data.decode(encoding, "replace")
+
+
+def parse_signature(data_reader: BufferedReader):
     sig_type = int.from_bytes(data_reader.read(1), "little")
     size_low = int.from_bytes(data_reader.read(1), "little")
     size_high = int.from_bytes(data_reader.read(2), "little")
@@ -300,22 +371,20 @@ def parse_signature(data_reader: BufferedReader, threat: Threat = None):
     signature = SIG_TYPES[sig_type] if sig_type in SIG_TYPES else None
     if not signature:
         return None
-    if signature == "SIGNATURE_TYPE_THREAT_END":
-        return None
-    if signature.endswith("HSTR_EXT"):
-        return HSTR_Rule(signature, value, threat)
-    if signature == "SIGNATURE_TYPE_FILEPATH":
-        return FilePath_Rule(signature, value)
-    if signature == "SIGNATURE_TYPE_FILENAME":
-        return Filename_Rule(signature, value)
-    if signature == "SIGNATURE_TYPE_NSCRIPT_SP":
-        # jscript
-        pass
-    if signature == "SIGNATURE_TYPE_FRIENDLYFILE_SHA256":
-        print(str(value))
-        pass
-    if signature == "SIGNATURE_TYPE_DBVAR":
-        print("MpEngine config")
-        pass
     if signature == "SIGNATURE_TYPE_THREAT_BEGIN":
         return Threat(value)
+    if signature == "SIGNATURE_TYPE_THREAT_END":
+        return None
+    if signature.find("HSTR") > -1:
+        return SignatureHSTR(value, sig_type, signature)
+    if signature == "SIGNATURE_TYPE_FILEPATH":
+        return SignatureFilePath(signature, value)
+    if signature == "SIGNATURE_TYPE_FILENAME":
+        return SignatureFilename(signature, value)
+    if signature == "SIGNATURE_TYPE_STATIC":
+        return SignatureStatic(sig_type, signature, value)
+    if signature == "SIGNATURE_TYPE_DEFAULTS":
+        return SignatureDefaults(sig_type, signature, value)
+    if signature == "SIGNATURE_TYPE_CLEANSCRIPT":
+        return SignatureCleanScript(sig_type, signature, value)
+    return BaseSignature(sig_type, signature, value)
