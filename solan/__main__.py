@@ -10,13 +10,14 @@ from solan.vdm import extract_vdm
 
 threats: list[Threat] = []
 
+
 def main():
     f = extract_vdm(sys.argv[1])
     try:
         db_size = f.seek(0, os.SEEK_END)
         f.seek(0)
-        threat : Threat = None
-        while(f.tell() < db_size):
+        threat: Threat = None
+        while f.tell() < db_size:
             signature = parse_signature(f)
             if type(signature) is Threat:
                 threat = signature
@@ -45,6 +46,7 @@ def main():
     for threat in test_threats:
         pprint.pprint(threat)
         pprint.pprint(threat.signatures)
+
 
 if __name__ == "__main__":
     main()

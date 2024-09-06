@@ -68,6 +68,9 @@ class Threat(BaseSignature):
         self.threat_id, self.threat_name = self._parse_threat_header(value)
         self.threat_name = self.threat_name
         self.signatures: list[BaseSignature] = []
+        self.category = (
+            self.threat_name.split("/")[0] if "/" in self.threat_name else "Generic"
+        )
 
     def __str__(self) -> str:
         return f"{self.threat_id} - {self.threat_name}"
@@ -206,7 +209,7 @@ class SignatureHSTR(BaseSignature):
                 BYTE   pbSubRuleBytesToMatch[];
             } STRUCT_RULE_PEHSTR_EXT, *PSTRUCT_RULE_PEHSTR_EXT;
             
-            NOTES: weights are calculated wrong in some cases because the offset is wrong - different signature types
+            for PEHSTR, the rule structure is almost the same - except for ui8CodeUnknown            
             """
             try:
                 rule_weight = data[offset] | (data[offset + 1] << 8)
