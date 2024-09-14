@@ -56,7 +56,10 @@ class BaseSignature:
         self.value = value
 
     def __str__(self) -> str:
-        return f"0x{self.type_value:02x}: {self.type_name}"
+        hexview = (
+            binascii.hexlify(self.value, sep=" ").decode("utf-8") if self.value else ""
+        )
+        return f"0x{self.type_value:02x}: {self.type_name}\n{hexview}"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -114,11 +117,7 @@ class SignatureStatic(BaseSignature):
         super().__init__(type_value, type_name, value)
 
     def __str__(self) -> str:
-        return (
-            super().__str__()
-            + "\ndetection bytes: "
-            + binascii.hexlify(self.value, sep=" ").decode("utf-8")
-        )
+        return super().__str__()
 
 
 class SignatureFilePath(BaseSignature):
