@@ -47,7 +47,7 @@ def main():
     print(f"Loaded {len(threats)} threats with {signature_count} signatures.")
 
     cmd = None
-    while cmd != "q":
+    while cmd != "quit":
         cmd = input("> ")
         cmd_params = cmd.split(" ")
         if cmd == "categories":
@@ -74,6 +74,12 @@ def main():
             ]
             for threat in results:
                 pprint.pprint(threat)
+        elif cmd_params[0] == "sigfind":
+            for threat in threats:
+                for signature in threat.signatures:
+                    if signature.type_name.lower().find(cmd_params[1].lower()) > -1:
+                        pprint.pprint(threat)
+
 
 if __name__ == "__main__":
     main()

@@ -1,11 +1,15 @@
 import binascii
 from io import BufferedReader
+import io
 import string
 from enum import Enum
+import subprocess
+import tempfile
 
 import chardet
 
 from solan import SIG_TYPES
+from solan.rules.lua import LuaFunc
 
 
 class WildcardType(Enum):
@@ -156,6 +160,49 @@ class SignatureCleanScript(BaseSignature):
 
     def __str__(self) -> str:
         return super().__str__() + "\nscript: " + _decode_str(self.value)
+
+
+class SignatureLuaStandalone(BaseSignature):
+    def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
+        super().__init__(type_value, type_name, value)
+        self.decompile(value)
+
+    def __str__(self) -> str:
+        decompiled = self.decompile(self.value)
+        if not decompiled:
+            return super().__str__()
+
+    def decompile(self, data):
+        # Header + some info hardcoded (int size, endianess, etc.)
+        # MpEngine actually checks that these values are always the same
+        header = b"\x1bLuaQ\x00\x01\x04\x08\x04\x08\x01"
+        # header = \x1bLuaQ\x00\x01\x04\x08\x04\x08\x00
+        index = 0
+        while index < len(data):
+            if data[index] == 0x1B:
+                if bytearray(data[index : index + 12]) == header:
+                    break
+
+            index += 1
+        try:
+            # print("parse idx %d: %s" % (index, str(data[index+12:100])))
+            f = io.BytesIO(data[index + 12 :])
+            func = LuaFunc(f)
+            f.close()
+            export = func.export(root=True)
+            tmp = tempfile.NamedTemporaryFile()
+            with open(tmp.name, "wb") as out:
+                out.write(export)
+                result = subprocess.run(
+                    ["luadec", tmp.name],
+                    capture_output=True,
+                    text=True,
+                    universal_newlines=True,
+                )
+
+            return result.stdout
+        except Exception as ex:
+            return None
 
 
 class SignatureHSTR(BaseSignature):
@@ -410,4 +457,6 @@ def parse_signature(data_reader: BufferedReader):
         return SignatureDefaults(sig_type, signature, value)
     if signature == "SIGNATURE_TYPE_CLEANSCRIPT":
         return SignatureCleanScript(sig_type, signature, value)
+    if signature == "SIGNATURE_TYPE_LUASTANDALONE":
+        return SignatureLuaStandalone(sig_type, signature, value)
     return BaseSignature(sig_type, signature, value)
