@@ -135,6 +135,16 @@ class SignatureFilePath(BaseSignature):
         return super().__str__() + "\nfilepath: " + self.path
 
 
+class SignatureIP(BaseSignature):
+    def __init__(self, type_value, type_name, value):
+        super().__init__(type_value, type_name, value)
+
+    def __str__(self):
+        if len(self.value) == 4:
+            return super().__str__() + "\nIPv4: " + ".".join(f"{c}" for c in self.value)
+        return super().__str__()
+
+
 class SignatureFilename(BaseSignature):
 
     def __init__(self, rule_type: str, rule_data: bytes) -> None:
@@ -154,6 +164,14 @@ class SignatureDefaults(BaseSignature):
         return super().__str__() + "\ndefaults: " + _decode_str(self.value)
 
 
+class SignatureExplicitResource(BaseSignature):
+    def __init__(self, type_value, type_name, value):
+        super().__init__(type_value, type_name, value)
+
+    def __str__(self):
+        return super().__str__() + "\ndecoded: " + _decode_str(self.value)
+
+
 class SignatureCleanScript(BaseSignature):
     def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
         super().__init__(type_value, type_name, value)
@@ -165,18 +183,15 @@ class SignatureCleanScript(BaseSignature):
 class SignatureLuaStandalone(BaseSignature):
     def __init__(self, type_value: int, type_name: str, value: bytes) -> None:
         super().__init__(type_value, type_name, value)
-        self.decompile(value)
 
     def __str__(self) -> str:
         decompiled = self.decompile(self.value)
         if not decompiled:
             return super().__str__()
+        return decompiled
 
     def decompile(self, data):
-        # Header + some info hardcoded (int size, endianess, etc.)
-        # MpEngine actually checks that these values are always the same
         header = b"\x1bLuaQ\x00\x01\x04\x08\x04\x08\x01"
-        # header = \x1bLuaQ\x00\x01\x04\x08\x04\x08\x00
         index = 0
         while index < len(data):
             if data[index] == 0x1B:
@@ -185,7 +200,6 @@ class SignatureLuaStandalone(BaseSignature):
 
             index += 1
         try:
-            # print("parse idx %d: %s" % (index, str(data[index+12:100])))
             f = io.BytesIO(data[index + 12 :])
             func = LuaFunc(f)
             f.close()
@@ -193,15 +207,15 @@ class SignatureLuaStandalone(BaseSignature):
             tmp = tempfile.NamedTemporaryFile()
             with open(tmp.name, "wb") as out:
                 out.write(export)
+                out.flush()
                 result = subprocess.run(
                     ["luadec", tmp.name],
                     capture_output=True,
                     text=True,
-                    universal_newlines=True,
                 )
 
             return result.stdout
-        except Exception as ex:
+        except:
             return None
 
 
@@ -459,4 +473,8 @@ def parse_signature(data_reader: BufferedReader):
         return SignatureCleanScript(sig_type, signature, value)
     if signature == "SIGNATURE_TYPE_LUASTANDALONE":
         return SignatureLuaStandalone(sig_type, signature, value)
+    if signature == "SIGNATURE_TYPE_NID":
+        return SignatureIP(sig_type, signature, value)
+    if signature == "SIGNATURE_TYPE_EXPLICITRESOURCE":
+        return SignatureExplicitResource(sig_type, signature, value)
     return BaseSignature(sig_type, signature, value)
