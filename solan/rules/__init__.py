@@ -136,6 +136,39 @@ class SignatureFilePath(BaseSignature):
         return super().__str__() + "\nfilepath: " + self.path
 
 
+class SignatureFolderName(BaseSignature):
+
+    def __init__(self, rule_type: str, rule_data: bytes) -> None:
+        super().__init__(95, "SIGNATURE_TYPE_FOLDERNAME", rule_data)
+        self.rule_type = rule_type
+        self.folder = _decode_str(rule_data)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\folder: " + self.folder
+
+
+class SignatureRegistryKey(BaseSignature):
+
+    def __init__(self, rule_type: str, rule_data: bytes) -> None:
+        super().__init__(95, "SIGNATURE_TYPE_REGKEY", rule_data)
+        self.rule_type = rule_type
+        self.regkey = _decode_str(rule_data)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\Registry key: " + self.regkey
+
+
+class SignatureAsepFilePath(BaseSignature):
+
+    def __init__(self, rule_type: str, rule_data: bytes) -> None:
+        super().__init__(95, "SIGNATURE_TYPE_ASEP_FILEPATH", rule_data)
+        self.rule_type = rule_type
+        self.path = _decode_str(rule_data)
+
+    def __str__(self) -> str:
+        return super().__str__() + "\ASEP Filepath: " + self.path
+
+
 class SignatureIP(BaseSignature):
     def __init__(self, type_value, type_name, value):
         super().__init__(type_value, type_name, value)
@@ -444,4 +477,3 @@ def _decode_str(data: bytes) -> str:
     encoding = chardet.detect(data)
     encoding = encoding["encoding"] if encoding["encoding"] else "ascii"
     return data.decode(encoding, "replace")
-
