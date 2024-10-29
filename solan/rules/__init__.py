@@ -143,7 +143,7 @@ class SignatureFolderName(BaseSignature):
         self.folder = _decode_str(rule_data)
 
     def __str__(self) -> str:
-        return super().__str__() + "\folder: " + self.folder
+        return super().__str__() + "\nfolder: " + self.folder
 
 
 class SignatureRegistryKey(BaseSignature):
@@ -154,7 +154,7 @@ class SignatureRegistryKey(BaseSignature):
         self.regkey = _decode_str(rule_data)
 
     def __str__(self) -> str:
-        return super().__str__() + "\Registry key: " + self.regkey
+        return super().__str__() + "\nRegistry key: " + self.regkey
 
 
 class SignatureAsepFilePath(BaseSignature):
@@ -165,7 +165,7 @@ class SignatureAsepFilePath(BaseSignature):
         self.path = _decode_str(rule_data)
 
     def __str__(self) -> str:
-        return super().__str__() + "\ASEP Filepath: " + self.path
+        return super().__str__() + "\nASEP Filepath: " + self.path
 
 
 class SignatureIP(BaseSignature):
