@@ -3,6 +3,7 @@ from io import BufferedReader
 import io
 import string
 from enum import Enum
+import struct
 import subprocess
 import tempfile
 
@@ -445,36 +446,39 @@ def _decode_str(data: bytes) -> str:
     return data.decode(encoding, "replace")
 
 
-def parse_signature(data_reader: BufferedReader):
-    sig_type = int.from_bytes(data_reader.read(1), "little")
-    size_low = int.from_bytes(data_reader.read(1), "little")
-    size_high = int.from_bytes(data_reader.read(2), "little")
+def parse_signature(db: bytes, offset: int):
+    sig_type = db[offset]
+    size_low = db[offset + 1]
+    size_high = struct.unpack("<H", db[offset + 2 : offset + 4])[0]
+
+    offset += 4
     size = size_low | size_high << 8
-    value = data_reader.read(size)
+    value = db[offset : offset + size]
+    offset += size
 
     signature = SIG_TYPES[sig_type] if sig_type in SIG_TYPES else None
     if not signature:
-        return None
+        return None, offset
     if signature == "SIGNATURE_TYPE_THREAT_BEGIN":
-        return Threat(sig_type, signature, value)
+        return Threat(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_THREAT_END":
-        return EndOfThreat(sig_type, signature, value)
+        return EndOfThreat(sig_type, signature, value), offset
     if signature.find("HSTR") > -1:
-        return SignatureHSTR(value, sig_type, signature)
+        return SignatureHSTR(value, sig_type, signature), offset
     if signature == "SIGNATURE_TYPE_FILEPATH":
-        return SignatureFilePath(signature, value)
+        return SignatureFilePath(signature, value), offset
     if signature == "SIGNATURE_TYPE_FILENAME":
-        return SignatureFilename(signature, value)
+        return SignatureFilename(signature, value), offset
     if signature == "SIGNATURE_TYPE_STATIC":
-        return SignatureStatic(sig_type, signature, value)
+        return SignatureStatic(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_DEFAULTS":
-        return SignatureDefaults(sig_type, signature, value)
+        return SignatureDefaults(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_CLEANSCRIPT":
-        return SignatureCleanScript(sig_type, signature, value)
+        return SignatureCleanScript(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_LUASTANDALONE":
-        return SignatureLuaStandalone(sig_type, signature, value)
+        return SignatureLuaStandalone(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_NID":
-        return SignatureIP(sig_type, signature, value)
+        return SignatureIP(sig_type, signature, value), offset
     if signature == "SIGNATURE_TYPE_EXPLICITRESOURCE":
-        return SignatureExplicitResource(sig_type, signature, value)
-    return BaseSignature(sig_type, signature, value)
+        return SignatureExplicitResource(sig_type, signature, value), offset
+    return BaseSignature(sig_type, signature, value), offset
