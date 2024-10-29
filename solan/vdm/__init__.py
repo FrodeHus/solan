@@ -65,6 +65,7 @@ class Vdm:
     def apply_delta(self, delta_path: str, base_data: bytes):
         if not delta_path:
             return base_data
+
         delta_raw_data = self.extract_vdm(delta_path)
         offset = 0
         while offset < len(delta_raw_data):
@@ -85,15 +86,17 @@ class Vdm:
             while ptr < len(delta_blob):
                 info = struct.unpack("H", delta_blob[ptr : ptr + 2])[0]
                 ptr += 2
-                if info & 0x7FFF == info:
+                if info & 0x80 == 0x80:
+                    # append from base
+                    size = info & 0x7FFF
+                    base_offset = struct.unpack(">I", delta_blob[ptr : ptr + 4])[0]
+                    ptr += 4
+                    # size = (info & 0x7FFF) + 6
+                    results.append(base_data[base_offset : base_offset + size])
+                else:
                     # append from delta
                     results.append(delta_blob[ptr : ptr + info])
-                else:
-                    # append from base
-                    base_offset = struct.unpack("I", delta_blob[ptr : ptr + 4])[0]
-                    ptr += 4
-                    size = (info & 0x7FFF) + 6
-                    results.append(base_data[base_offset : base_offset + size])
+                    ptr += info
 
                 progress.update(task, completed=ptr)
         return b"".join(results)
