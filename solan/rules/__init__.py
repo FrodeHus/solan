@@ -41,7 +41,7 @@ class RuleSegment:
 
     def __str__(self) -> str:
         if self.wildcard_type == WildcardType.MatchExactByteCount:
-            return " ".join(["??" for x in range(self.byte_count1)])
+            return " ".join(["??" for _ in range(self.byte_count1)])
         if self.wildcard_type == WildcardType.MatchUpToByteCount:
             return f"[0-{self.byte_count1}]"
         if self.wildcard_type == WildcardType.MatchEitherByteCount:
@@ -453,23 +453,21 @@ class Rule:
 def _convert_to_printable(segments: list[RuleSegment] = None):
 
     data = bytearray()
+    hexview = ""
     for segment in segments:
         try:
             if segment.wildcard_type:
-                data += segment.__str__().encode()
+                data += " " + segment.__str__().encode() + " "
+                hexview += segment.__str__()
             else:
                 data += segment.detection_bytes
+                hexview += binascii.hexlify(segment.detection_bytes, sep=" ").decode(
+                    "utf-8"
+                )
         except:
             pass
-    printables = string.ascii_letters + string.digits + string.punctuation + " "
 
-    data = data.replace(b"\x00", b"")
-    encoding = chardet.detect(data)
-    encoding = encoding["encoding"] if encoding["encoding"] else "unicode_escape"
-    return "".join(
-        c if c in printables else r"\x{0:02x}".format(ord(c))
-        for c in data.decode(encoding, "replace")
-    )
+    return _decode_str(data)
 
 
 def _decode_str(data: bytes) -> str:
