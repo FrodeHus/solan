@@ -49,6 +49,9 @@ def main():
         if cmd == "categories":
             pprint.pprint({t.category for t in threats})
         elif cmd_params[0] == "list":
+            if len(cmd_params) < 2:
+                print("Usage: list <category|all>")
+                continue
             what = cmd_params[1]
             if what == "all":
                 for threat in threats:
@@ -56,6 +59,9 @@ def main():
             else:
                 renderThreats([t for t in threats if t.category == what])
         elif cmd_params[0] == "get":
+            if len(cmd_params) < 2:
+                print("Usage: get <id>")
+                continue
             id = int(cmd_params[1])
             for threat in threats:
                 if threat.threat_id == id:
@@ -63,14 +69,20 @@ def main():
                     pprint.pprint(threat.signatures)
                     break
         elif cmd_params[0] == "find":
-            results = [
+            if len(cmd_params) < 2:
+                print("Usage: find <string>")
+                continue
+            results = {
                 threat
                 for threat in threats
                 if threat.threat_name.lower().find(cmd_params[1].lower()) > -1
-            ]
+            }
             for threat in results:
                 pprint.pprint(threat)
         elif cmd_params[0] == "sigfind":
+            if len(cmd_params) < 2:
+                print("Usage: sigfind <signature name>")
+                continue
             for threat in threats:
                 for signature in threat.signatures:
                     if signature.type_name.lower().find(cmd_params[1].lower()) > -1:
