@@ -1,15 +1,12 @@
 import binascii
-from io import BufferedReader
 import io
 import string
 from enum import Enum
-import struct
 import subprocess
 import tempfile
 
 import chardet
 
-from solan import SIG_TYPES
 from solan.rules.lua import LuaFunc
 
 
@@ -44,13 +41,15 @@ class RuleSegment:
 
     def __str__(self) -> str:
         if self.wildcard_type == WildcardType.MatchExactByteCount:
-            return f"([\w]{{{self.byte_count1}}})"
+            return " ".join(["??" for x in range(self.byte_count1)])
         if self.wildcard_type == WildcardType.MatchUpToByteCount:
-            return f"([\w]{{0,{self.byte_count1}}})"
+            return f"[0-{self.byte_count1}]"
+        if self.wildcard_type == WildcardType.MatchEitherByteCount:
+            seq1 = binascii.hexlify(self.byte_count1)
+            seq2 = binascii.hexlify(self.byte_count2)
+            return f"({seq1}|{seq2})"
         if self.wildcard_type == WildcardType.RegexMatchExactCount:
-            return f"([{self.regex}]{{{self.byte_count1}}})"
-        if self.wildcard_type == WildcardType.RegexMatchUpToCount:
-            return f"([{self.regex}]{{0,{self.byte_count1}}})"
+            return f"[{self.byte_count1}-{self.byte_count2}]"
         return "(TODO)"
 
 
