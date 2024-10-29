@@ -1,10 +1,8 @@
-import os
 import sys
 import pprint
 from solan.rules import (
     EndOfThreat,
     Threat,
-    parse_signature,
 )
 from solan.ui import renderThreats
 from solan.vdm import Vdm
@@ -23,7 +21,7 @@ def main():
             task = progress.add_task("Loading signatures...", total=db_size)
             offset = 0
             while offset < db_size:
-                signature, offset = parse_signature(db, offset)
+                signature, offset = base_vdm.parse_signature(db, offset)
                 if type(signature) is Threat:
                     threat = signature
                     threats.append(threat)

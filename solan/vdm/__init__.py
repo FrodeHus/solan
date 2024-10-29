@@ -120,7 +120,8 @@ class Vdm:
         offset += 4
         size = size_low | size_high << 8
         if size == 0xFFFFFF:
-            raise ValueError("bleh")
+            size = struct.unpack("<I", db[offset + 4 : offset + 8])
+            offset += 4
 
         value = db[offset : offset + size]
         offset += size
