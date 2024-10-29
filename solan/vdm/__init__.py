@@ -71,8 +71,7 @@ class Vdm:
         ptr = 0
         unknown1, unknown2 = struct.unpack("II", delta_blob[ptr : ptr + 8])
         ptr += 8
-        # results: List[bytes] = []
-        results: bytes = b""
+        results: List[bytes] = []
 
         from rich.progress import Progress
 
@@ -83,16 +82,16 @@ class Vdm:
                 ptr += 2
                 if info & 0x7FFF == info:
                     # append from delta
-                    results += delta_blob[ptr : ptr + info]
+                    results.append(delta_blob[ptr : ptr + info])
                 else:
                     # append from base
                     base_offset = struct.unpack("I", delta_blob[ptr : ptr + 4])[0]
                     ptr += 4
                     size = (info & 0x7FFF) + 6
-                    results += base_data[base_offset : base_offset + size]
+                    results.append(base_data[base_offset : base_offset + size])
 
                 progress.update(task, completed=ptr)
-        return results
+        return b"".join(results)
 
     def get_file_info(self):
         with exiftool.ExifToolHelper() as ef:
