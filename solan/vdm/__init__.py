@@ -157,7 +157,7 @@ class Vdm:
         if signature == "SIGNATURE_TYPE_NID":
             return SignatureIP(sig_type, signature, value), offset
         if signature == "SIGNATURE_TYPE_ASEP_FILEPATH":
-            return SignatureAsepFilePath(sig_type, signature, value), offset
+            return SignatureAsepFilePath(signature, value), offset
         if signature == "SIGNATURE_TYPE_EXPLICITRESOURCE":
             return SignatureExplicitResource(sig_type, signature, value), offset
         return BaseSignature(sig_type, signature, value), offset
