@@ -46,11 +46,12 @@ class Vdm:
 
     def extract_vdm(self, vdm_path: str):
         # Get VDM data
-        data = open(vdm_path, "rb").read()
+        with open(vdm_path, "rb") as f:
+            data = f.read()
         # Look for the resource signature
         base = data.index(b"RMDX")
         if not base:
-            raise ValueError(f"Not a valid VDM file: {self.vdm_path}")
+            raise ValueError(f"Not a valid VDM file: {vdm_path}")
 
         # Extract relevant information
         offset, size = struct.unpack("II", data[base + 0x18 : base + 0x20])
@@ -86,17 +87,18 @@ class Vdm:
             while ptr < len(delta_blob):
                 info = struct.unpack("H", delta_blob[ptr : ptr + 2])[0]
                 ptr += 2
-                if info & 0x80 == 0x80:
-                    # append from base
-                    size = info & 0x7FFF
-                    base_offset = struct.unpack(">I", delta_blob[ptr : ptr + 4])[0]
-                    ptr += 4
-                    # size = (info & 0x7FFF) + 6
-                    results.append(base_data[base_offset : base_offset + size])
-                else:
+                if info & 0x7FFF == info:
                     # append from delta
                     results.append(delta_blob[ptr : ptr + info])
                     ptr += info
+                else:
+                    # append from base
+                    base_offset = struct.unpack("I", delta_blob[ptr : ptr + 4])[0]
+                    ptr += 4
+                    size = (info & 0x7FFF) + 6
+                    segment = base_data[base_offset : base_offset + size]
+                    assert len(segment) == size
+                    results.append(segment)
 
                 progress.update(task, completed=ptr)
         return b"".join(results)
