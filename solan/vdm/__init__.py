@@ -1,3 +1,4 @@
+from os import path
 import sys
 from typing import List
 import zlib
@@ -37,7 +38,11 @@ class Vdm:
         self.version = version
 
         self.raw_data = self.extract_vdm(self.vdm_path)
-        self.raw_data = self.apply_delta(self.delta_path, self.raw_data)
+        try:
+            self.raw_data = self.apply_delta(self.delta_path, self.raw_data)
+        except Exception as err:
+            print(err)
+            exit(1)
 
     def extract_vdm(self, vdm_path: str):
         # Get VDM data
@@ -94,9 +99,13 @@ class Vdm:
         return b"".join(results)
 
     def get_file_info(self):
-        with exiftool.ExifToolHelper() as ef:
-            metadata = ef.get_tags(self.vdm_path, tags=None)[0]
-            return metadata["EXE:OriginalFileName"], metadata["EXE:ProductVersion"]
+        try:
+            with exiftool.ExifToolHelper() as ef:
+                metadata = ef.get_tags(self.vdm_path, tags=None)[0]
+                return metadata["EXE:OriginalFileName"], metadata["EXE:ProductVersion"]
+        except:
+            filename = path.basename(self.vdm_path)
+            return filename, ""
 
     def parse_signature(self, db: bytes, offset: int):
         sig_type = db[offset]
