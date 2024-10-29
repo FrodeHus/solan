@@ -1,28 +1,27 @@
-import os
 import sys
 import pprint
 from solan.rules import (
     EndOfThreat,
     Threat,
-    parse_signature,
 )
 from solan.ui import renderThreats
-from solan.vdm import extract_vdm
+from solan.vdm import Vdm
 from rich.progress import Progress
 
 threats: list[Threat] = []
 
 
 def main():
-    f = extract_vdm(sys.argv[1])
+    base_vdm = Vdm(sys.argv[1])
+    db = base_vdm.raw_data
     try:
-        db_size = f.seek(0, os.SEEK_END)
-        f.seek(0)
+        db_size = len(db)
         threat: Threat = None
         with Progress() as progress:
             task = progress.add_task("Loading signatures...", total=db_size)
-            while f.tell() < db_size:
-                signature = parse_signature(f)
+            offset = 0
+            while offset < db_size:
+                signature, offset = base_vdm.parse_signature(db, offset)
                 if type(signature) is Threat:
                     threat = signature
                     threats.append(threat)
@@ -35,13 +34,10 @@ def main():
                 elif threat and signature:
                     threat.signatures.append(signature)
 
-                progress.update(task, completed=f.tell())
+                progress.update(task, completed=offset)
 
     except Exception as err:
         pprint.pprint(err)
-    finally:
-        f.close()
-        os.unlink(f.name)
 
     signature_count = sum([len(s.signatures) for s in threats])
     print(f"Loaded {len(threats)} threats with {signature_count} signatures.")

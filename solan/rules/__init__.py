@@ -3,6 +3,7 @@ from io import BufferedReader
 import io
 import string
 from enum import Enum
+import struct
 import subprocess
 import tempfile
 
@@ -444,37 +445,3 @@ def _decode_str(data: bytes) -> str:
     encoding = encoding["encoding"] if encoding["encoding"] else "ascii"
     return data.decode(encoding, "replace")
 
-
-def parse_signature(data_reader: BufferedReader):
-    sig_type = int.from_bytes(data_reader.read(1), "little")
-    size_low = int.from_bytes(data_reader.read(1), "little")
-    size_high = int.from_bytes(data_reader.read(2), "little")
-    size = size_low | size_high << 8
-    value = data_reader.read(size)
-
-    signature = SIG_TYPES[sig_type] if sig_type in SIG_TYPES else None
-    if not signature:
-        return None
-    if signature == "SIGNATURE_TYPE_THREAT_BEGIN":
-        return Threat(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_THREAT_END":
-        return EndOfThreat(sig_type, signature, value)
-    if signature.find("HSTR") > -1:
-        return SignatureHSTR(value, sig_type, signature)
-    if signature == "SIGNATURE_TYPE_FILEPATH":
-        return SignatureFilePath(signature, value)
-    if signature == "SIGNATURE_TYPE_FILENAME":
-        return SignatureFilename(signature, value)
-    if signature == "SIGNATURE_TYPE_STATIC":
-        return SignatureStatic(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_DEFAULTS":
-        return SignatureDefaults(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_CLEANSCRIPT":
-        return SignatureCleanScript(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_LUASTANDALONE":
-        return SignatureLuaStandalone(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_NID":
-        return SignatureIP(sig_type, signature, value)
-    if signature == "SIGNATURE_TYPE_EXPLICITRESOURCE":
-        return SignatureExplicitResource(sig_type, signature, value)
-    return BaseSignature(sig_type, signature, value)
