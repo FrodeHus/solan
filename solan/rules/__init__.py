@@ -2,6 +2,7 @@ import binascii
 import io
 import string
 from enum import Enum
+import struct
 import subprocess
 import tempfile
 
@@ -285,8 +286,8 @@ class SignatureHSTR(BaseSignature):
         } STRUCT_PEHSTR_HEADER, * PSTRUCT_PEHSTR_HEADER;
         """
         unknown_bytes = data[0:2]
-        detection_threshold = data[2] | (data[3] << 8)
-        sub_rules_count = data[4] | (data[5] << 8)
+        detection_threshold = struct.unpack("<H", data[2:4])[0]
+        sub_rules_count = struct.unpack("<H", data[4:6])[0]
         empty = data[6]
         offset = 7
         rule_index = 0
@@ -304,7 +305,7 @@ class SignatureHSTR(BaseSignature):
             for PEHSTR, the rule structure is almost the same - except for ui8CodeUnknown            
             """
             try:
-                rule_weight = data[offset] | (data[offset + 1] << 8)
+                rule_weight = struct.unpack("<H", data[offset : offset + 2])[0]
                 rule_size = data[offset + 2]
                 unknown = data[offset + 3]
                 padding = 0
@@ -457,7 +458,7 @@ def _convert_to_printable(segments: list[RuleSegment] = None):
     for segment in segments:
         try:
             if segment.wildcard_type:
-                data += segment.__str__().encode()
+                data += f"[deep_sky_blue1]{segment.__str__()}[/]".encode()
                 hexview += " [deep_sky_blue1]" + segment.__str__() + "[/] "
             else:
                 data += segment.detection_bytes
