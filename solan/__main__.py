@@ -7,6 +7,7 @@ from solan.rules import (
 from solan.ui import renderThreats
 from solan.vdm import Vdm
 from rich.progress import Progress
+from rich import print
 
 threats: list[Threat] = []
 
@@ -65,8 +66,9 @@ def main():
             id = int(cmd_params[1])
             for threat in threats:
                 if threat.threat_id == id:
-                    pprint.pprint(threat)
-                    pprint.pprint(threat.signatures)
+                    print(threat.__str__())
+                    for signature in threat.signatures:
+                        print(signature.__str__())
                     break
         elif cmd_params[0] == "find":
             if len(cmd_params) < 2:

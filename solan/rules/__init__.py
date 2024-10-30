@@ -264,7 +264,7 @@ class SignatureHSTR(BaseSignature):
         self.detection_threshold, self.rules = self._parse_hstr_rule_ext(rule_data)
 
     def __str__(self) -> str:
-        pretty = f"detection_threshold: {self.detection_threshold} - rule_count: {len(self.rules)}\nrules:\n"
+        pretty = f"detection_threshold: [yellow]{self.detection_threshold}[/] - rule_count: [yellow]{len(self.rules)}[/]\nrules:\n"
         for rule in self.rules:
             pretty += " " + rule.__str__() + "\n"
         return pretty
@@ -444,7 +444,7 @@ class Rule:
 
     def __str__(self) -> str:
         stringified, hexview = _convert_to_printable(self.segments)
-        return f"\tweight: {self.weight}\trule: {hexview}\n\t\t\tstr: {stringified}"
+        return f"\tweight: [green]{self.weight}[/]\trule: {hexview}\n\t\t\tstr: [yellow]{stringified}[/]"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -458,11 +458,13 @@ def _convert_to_printable(segments: list[RuleSegment] = None):
         try:
             if segment.wildcard_type:
                 data += segment.__str__().encode()
-                hexview += " " + segment.__str__() + " "
+                hexview += " [deep_sky_blue1]" + segment.__str__() + "[/] "
             else:
                 data += segment.detection_bytes
-                hexview += binascii.hexlify(segment.detection_bytes, sep=" ").decode(
-                    "utf-8"
+                hexview += (
+                    "[spring_green3]"
+                    + binascii.hexlify(segment.detection_bytes, sep=" ").decode("utf-8")
+                    + "[/]"
                 )
         except Exception as err:
             print(err)
